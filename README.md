@@ -1,18 +1,12 @@
-# Deploying and Funding Smart Contracts on Base Sepolia Testnet
+# Deploying & Verifying Noir ZK Verifiers on Base Sepolia (Foundry + Noir)
 
 ## Introduction
 
-This lesson walks developers through the end-to-end onboarding and funding process for Base Sepolia testnet so they can deploy and verify smart contracts (e.g., Noir-generated verifiers) using Foundry. You'll learn how to:
+This end-to-end lesson combines onboarding to Base Sepolia with a practical pipeline for deploying and verifying a Noir-generated zero-knowledge (ZK) verifier contract using Foundry. It guides you from wallet/network setup, test-funding and bridging, through RPC configuration and tooling (Foundry, Noir), to deployment, on-chain verification, and proof submission. The guide emphasizes reproducible, secure practices and troubleshooting tips so you can go from a local circuit to an on-chain verifier that returns `true` for valid proofs.
 
-- Add Base Sepolia to MetaMask,
-- Obtain Base Sepolia test ETH from faucets,
-- Bridge a small amount of ETH from Ethereum Mainnet to Base Mainnet (so faucets will allow claims),
-- Configure reliable RPC providers (public vs Alchemy),
-- Create a BaseScan (Etherscan-style) API key,
-- Export a private key safely into a local .env for Foundry/forge,
-- Test the RPC connection and prepare for contract deployment.
+Intended audience: Developers who know MetaMask and basic Solidity tooling and want a practical workflow to deploy and verify ZK verifiers on Base Sepolia.
 
-Intended audience: developers familiar with MetaMask and basic Solidity tooling who want a practical, reproducible workflow for testnet onboarding and contract deployment.
+---
 
 ## Objectives
 
@@ -20,328 +14,392 @@ By the end of this lesson you will be able to:
 
 1. Add Base Sepolia network to MetaMask (manual or one-click).
 2. Distinguish Base Sepolia test ETH from other Sepolia/Goerli balances and obtain test funds from appropriate faucets.
-3. Update MetaMask Base Mainnet configuration to use the official RPC to avoid mis-checks by faucets and bridges.
-4. Bridge ETH from Ethereum Mainnet to Base Mainnet using the official Base bridge and verify the deposited balance.
-5. Obtain a reliable RPC endpoint (public or Alchemy), set environment variables, and test JSON-RPC connectivity.
-6. Create a BaseScan API key for contract verification and store it securely in a .env file (and understand never to commit it).
-7. Install and verify Foundry tooling (`forge`, `cast`), and prepare the project for deploying contracts to Base Sepolia.
-8. Troubleshoot common issues: faucet errors, RPC mismatches, insufficient balances for bridge/faucet checks.
+3. Ensure Base Mainnet uses the official RPC so bridges and faucets' checks succeed.
+4. Bridge a small amount of ETH from Ethereum Mainnet → Base Mainnet, and verify balances on BaseScan.
+5. Obtain and configure a reliable RPC endpoint (public or provider like Alchemy) and test JSON-RPC connectivity.
+6. Create a BaseScan API key for source verification and store it securely in a local `.env` (never commit).
+7. Install and use Foundry (`forge`, `cast`) to compile, deploy, and verify Solidity verifier contracts.
+8. Generate proofs with Noir, format them for on-chain calls, and call the verifier via explorer or CLI.
+9. Troubleshoot common issues (RPC mismatches, faucet/bridge checks, proof formatting).
+
+---
 
 ## Prerequisites
 
-- MetaMask installed and an Ethereum address ready.
-- Basic familiarity with terminal and bash.
-- (Optional but recommended) Alchemy or QuickNode account for reliable RPC access.
-- A local development repository with your contracts and Foundry project structure.
+- MetaMask installed and an active Ethereum address.
+- Basic terminal and bash familiarity.
+- A local repo with your contracts and Foundry project (or willing to create one).
+- (Recommended) Alchemy / QuickNode account for reliable RPC.
+- Noir installed for proof generation (if working with Noir circuits).
 
 ---
 
-## 1 — Step-by-step: Adding Base Sepolia to MetaMask
+## Quick reference: chain & RPC values
 
-Steps:
-
-1. Open MetaMask → Settings → Networks → Add Network.
-2. Fill in the following network details.
-
-Network details:
-
-- **Network name:** Base Sepolia  
-- **RPC URL:** https://sepolia.base.org  
-- **Chain ID:** 84532  
-- **Currency symbol:** ETH  
-- **Block explorer:** https://sepolia.basescan.org
-
-Alternative: use a one-click add from ChainList or other trusted providers (example guidance: https://revoke.cash/learn/wallets/add-network/base-sepolia).
+- Base Sepolia (testnet)
+  - Chain ID: 84532
+  - Public RPC: https://sepolia.base.org
+  - Explorer: https://sepolia.basescan.org
+- Base Mainnet
+  - Chain ID: 8453
+  - Public RPC: https://mainnet.base.org
+  - Explorer: https://basescan.org
 
 ---
 
-## 2 — Get Base Sepolia Test ETH (Free)
+## 1 — Add Base Sepolia to MetaMask
 
-Important: You need **Base Sepolia ETH**, not Ethereum Sepolia ETH.
+Manual:
 
-Faucet options:
+1. MetaMask → Settings → Networks → Add Network
+2. Fill:
+   - Network name: Base Sepolia
+   - RPC URL: https://sepolia.base.org
+   - Chain ID: 84532
+   - Currency: ETH
+   - Block explorer: https://sepolia.basescan.org
 
-- Alchemy Faucet — https://www.alchemy.com/faucets/base-sepolia (free Alchemy account required)
-- PK910 Faucet — https://base-sepolia-faucet.pk910.de/
-- QuickNode Faucet — https://faucet.quicknode.com/base/sepolia
-
-Note: Some faucets require your wallet to have at least 0.001 ETH on Base Mainnet before claiming.
-
----
-
-## 3 — Update Base Mainnet Network Configuration (MetaMask)
-
-MetaMask often auto-adds Base (chain ID 8453) with a generic WalletConnect RPC `rpc.walletconnect.org/v1/`. This can cause faucet or bridge checks to fail.
-
-Fix: update the Base Mainnet entry to use the official RPC.
-
-1. MetaMask → Settings → Networks
-2. Select **Base (chain ID 8453)**
-3. Click **Edit**
-
-Replace with:
-
-- **Network Name:** Base Mainnet  
-- **New RPC URL:** https://mainnet.base.org  
-- **Chain ID:** 8453  
-- **Currency Symbol:** ETH  
-- **Block Explorer:** https://basescan.org
-
-Click **Save**.
+Alternative: use a one-click/provider link (Chainlist-style) from a trusted source.
 
 ---
 
-## 4 — Faucet May Still Show Errors
+## 2 — Get Base Sepolia Test ETH (Faucets)
 
-Keep in mind:
+Important: you need Base Sepolia ETH specifically.
 
-- The same address (e.g., 0x4328...907b) exists across networks, but balances are network-specific.
-- You may have ETH on Ethereum Mainnet but not on Base Mainnet — faucets sometimes check Base Mainnet balance.
+Faucets (examples):
+- Alchemy Faucet: https://www.alchemy.com/faucets/base-sepolia (requires Alchemy account)
+- PK910 Faucet: https://base-sepolia-faucet.pk910.de/
+- QuickNode Faucet: https://faucet.quicknode.com/base/sepolia
 
-If you see faucet errors, confirm the network MetaMask is using and that you hold the required balance on the network the faucet checks.
-
----
-
-## 5 — Bridge ETH to Base Mainnet (Official Method)
-
-Step-by-step (official bridge):
-
-1. Visit: https://bridge.base.org  
-2. Connect MetaMask.  
-3. Set From: Ethereum Mainnet → To: Base Mainnet.  
-4. Enter amount (e.g., 0.001 ETH — a small amount sufficient for testnet needs).  
-5. Click **Deposit** and confirm prompts.
-
-Confirm two MetaMask prompts:
-
-- Ethereum transaction (pays gas).
-- L2 message for Base.
-
-Wait ~5–10 minutes for the bridge to complete.
+Note: Some faucets check your Base Mainnet balance (not Ethereum mainnet). If a faucet rejects your request, read "Faucet/Bridge Checks" in Troubleshooting.
 
 ---
 
-## 6 — Verify Your Balance
+## 3 — Ensure Base Mainnet RPC is Correct in MetaMask
 
-After bridging:
+MetaMask sometimes auto-uses WalletConnect RPC for Base Mainnet which causes checks to fail.
 
-1. Switch MetaMask to **Base Mainnet**.
-2. Check your address on BaseScan (example):  
-   https://basescan.org/address/0x43288a1E4f64D561c93401f3B7A5D37248C4907b
+Fix:
+1. MetaMask → Settings → Networks → Base (chain ID 8453) → Edit
+2. Set RPC URL to: https://mainnet.base.org  
+3. Save.
 
-If you see ~0.001 ETH or more, you can:
-
-- Use Base Sepolia faucets.
-- Deploy and verify contracts on Base Sepolia.
-
-Optional: use https://revoke.cash to manage token approvals and allowances.
+This avoids bridge or faucet failures that inspect Base Mainnet state.
 
 ---
 
-## 7 — Deploying Smart Contracts on Base Sepolia (Foundry)
+## 4 — Bridge a Small Amount to Base Mainnet (Official Base bridge)
 
-Project structure (example):
+If a faucet requires Base Mainnet balance or you want on-chain funds on Base:
 
-```
-zk_proof_mul_and_sum/
-├─ circuits/        → Noir circuit + proofs
-├─ contract/        → Solidity verifier + Foundry setup
-└─ js/              → Proof generation scripts
+1. Visit: https://bridge.base.org
+2. Connect MetaMask, set From: Ethereum Mainnet → To: Base Mainnet.
+3. Enter a small amount (e.g., 0.001 ETH).
+4. Click "Deposit" and confirm the MetaMask transactions (L1 gas tx + L2 message).
+
+Wait ~5–10 minutes for completion and verify balance on BaseScan.
+
+---
+
+## 5 — Verify Balances on BaseScan
+
+- Switch MetaMask to Base Mainnet and/or Base Sepolia as needed.
+- Open explorer:
+  - Base Mainnet: https://basescan.org/address/<your-address>
+  - Base Sepolia: https://sepolia.basescan.org/address/<your-address>
+
+Confirm expected ETH amounts. If not visible, ensure you are on the correct network and check pending transactions.
+
+---
+
+## 6 — Choose and Configure RPC (public vs provider)
+
+Option A — Public:
+- Sepolia public RPC: https://sepolia.base.org
+- Pros: no signup. Cons: rate limits and outages under load.
+
+Option B — Alchemy (recommended for reliability):
+1. Create app on Alchemy: name it `base-sepolia-dev`, choose Base Sepolia.
+2. Enable Node API; copy HTTPS RPC: e.g. `https://base-sepolia.g.alchemy.com/v2/YOUR_KEY`.
+
+Set RPC in your environment (example `.env` shown later).
+
+Test connectivity:
+
+```bash
+export RPC="https://sepolia.base.org"  # or your Alchemy URL
+curl -X POST $RPC \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
 ```
 
-Goal: Deploy `Verifier.sol` to the Base Sepolia testnet using Foundry.
+Expected simple JSON with `"result": "0x..."`. If you get an error, re-check the RPC URL and network.
 
 ---
 
-## 8 — Install and Update Foundry
+## 7 — Create a BaseScan API Key
 
-Install Foundry and update:
+1. Visit: https://basescan.org
+2. Sign in / create account.
+3. Profile → API Keys → Create new key (name it e.g. `base-sepolia-dev`).
+4. Copy the key and keep it secret (store in local `.env`).
+
+This key is used by Foundry to verify source code on BaseScan.
+
+---
+
+## 8 — Store Secrets Locally (.env) — DO NOT COMMIT
+
+Example `.env` in your project `contract/` folder:
+
+```bash
+cat > .env <<'EOF'
+RPC="https://base-sepolia.g.alchemy.com/v2/YOUR_ALCHEMY_KEY"
+PK="0xyour_private_key_here"
+ETHERSCAN_API_KEY="your_basescan_api_key"
+EOF
+
+# load into shell
+source .env
+```
+
+Security notes:
+- Never commit `.env` or private keys to git.
+- Use a hardware wallet for production.
+- For CI, use encrypted secrets.
+
+---
+
+## 9 — Export Private Key from MetaMask (careful)
+
+1. MetaMask → Account → Account Details → Export Private Key
+2. Confirm and copy `0x...` hex key.
+3. Paste into `.env` as `PK="0x..."`.
+
+Do not paste keys into public places or share them.
+
+---
+
+## 10 — Install and Verify Foundry
+
+Install Foundry:
 
 ```bash
 curl -L https://foundry.paradigm.xyz | bash
 foundryup
 ```
 
-Verify installation:
+Verify:
 
 ```bash
 forge --version
 cast --version
 ```
 
-Foundry docs: https://book.getfoundry.sh/
+If missing, follow Foundry docs: https://book.getfoundry.sh/
+
+Recommended `foundry.toml` snippets (avoid CreateContractSizeLimit):
+
+```toml
+[profile.default]
+optimizer = true
+optimizer_runs = 200
+# via_ir = true   # enable if needed
+```
 
 ---
 
-## 9 — Configure Environment Variables
+## 11 — Project layout (example)
 
-Export your private key and Base Sepolia RPC URL (official endpoint):
+```
+zk_proof_mul_and_sum/
+├─ circuits/        → Noir circuit + proof generation
+├─ contract/        → Solidity verifier + Foundry
+├─ script/          → Deploy scripts (Script.sol)
+└─ js/              → Proof generation / helper scripts
+```
+
+Verifier contract typically named `Verifier.sol` (or `HonkVerifier` as an example).
+
+---
+
+## 12 — Deploying with Foundry (manual CLI)
+
+Compile & deploy a contract and attempt auto-verify:
 
 ```bash
-export RPC="https://sepolia.base.org"
-export PK="0xYOUR_PRIVATE_KEY"
-export ETHERSCAN_API_KEY="your_basescan_api_key"
+forge create src/Verifier.sol:Verifier \
+  --rpc-url $RPC \
+  --private-key $PK \
+  --verify \
+  --etherscan-api-key $ETHERSCAN_API_KEY \
+  --broadcast
 ```
 
-Note: the RPC URL is a JSON-RPC endpoint (not a web page). You can test it:
+Notes:
+- Replace `src/Verifier.sol:Verifier` with your contract path and name.
+- `--verify` triggers source verification on BaseScan using your API key.
 
-```bash
-curl -X POST $RPC \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
-```
+If you run into `CreateContractSizeLimit`, increase optimizer runs or enable `via_ir`.
 
 ---
 
-## Config Setup: RPC, PK, and BaseScan API Key
+## 13 — Scripted Deployment (recommended)
 
-What these values are and where to get them:
+Create `script/Deploy.s.sol`:
 
-- **RPC:** JSON-RPC endpoint for Base Sepolia — public: `https://sepolia.base.org` or provider (Recommended: Alchemy, QuickNode)
-- **PK (Private Key):** Used to sign deployments — export from MetaMask (keep secret)
-- **ETHERSCAN_API_KEY:** Used for contract verification on BaseScan — create in your BaseScan account
+```solidity
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity ^0.8.13;
+import {Script, console} from "forge-std/Script.sol";
+import {Verifier} from "../src/Verifier.sol";
 
----
-
-## Export Private Key from MetaMask (Handle Carefully)
-
-1. Open MetaMask.
-2. Click Account → Account Details → Export Private Key.
-3. Confirm the prompt and copy the hex key (`0x...`).
-4. Paste into your local `.env` (never commit `.env` to GitHub):
-
-```bash
-PK="0xYOUR_PRIVATE_KEY"
+contract DeployScript is Script {
+    function run() public {
+        vm.startBroadcast();
+        Verifier v = new Verifier();
+        console.log("Verifier deployed at:", address(v));
+        vm.stopBroadcast();
+    }
+}
 ```
-
----
-
-## Get RPC Endpoint — Option A: Public Base Sepolia
-
-- Use the public endpoint: `https://sepolia.base.org`
-- No signup required
-- May have reliability limits under heavy use
-
----
-
-## Get RPC Endpoint — Option B: Alchemy (Recommended)
-
-Step 1 — Create an app on Alchemy (https://www.alchemy.com):
-
-- Name: `base-sepolia-dev`
-- Chain: Base Sepolia
-- Environment: Development
-- Use Case and other fields as needed
-
-Step 2 — Choose Chains
-
-- Select **Base Sepolia**
-- Optionally also select Ethereum Sepolia
-
-Step 3 — Activate Services
-
-Recommended:
-
-- Node API (JSON-RPC) — ON
-- Transfers API — ON
-- Transaction Simulation — Optional
-- Webhooks — Optional
-
-Step 4 — Copy the Alchemy HTTPS RPC URL:
-
-Example:
-
-```bash
-RPC="https://base-sepolia.g.alchemy.com/v2/YOUR_API_KEY"
-```
-
-If you see `eth-sepolia`, switch to Base Sepolia and refresh.
-
----
-
-## Create a BaseScan (Etherscan-style) API Key
-
-1. Visit: https://basescan.org  
-2. Sign in or sign up.  
-3. Go to Profile → API Keys → Add / Create New API Key.  
-4. Name it (e.g., `base-sepolia-dev`) and copy the generated key.
-
-Use it in your `.env` as:
-
-```bash
-ETHERSCAN_API_KEY="paste_your_key_here"
-```
-
----
-
-## Obtaining Your Etherscan API Key (Optional Reference)
-
-If you use Etherscan-style APIs elsewhere:
-
-- Visit https://etherscan.io/myapikey to view or create API keys.
-- Example key usage:
-
-```
-ETHERSCAN_API_KEY=VZFDUWB3YGQ1YCDKTCU1D6DDSS
-```
-
-API URL example:
-
-```
-https://api.etherscan.io/v2/api?chainid=1&module=account&action=balance&address=0xYourAddress&tag=latest&apikey=VZFDUWB3YGQ1YCDKTCU1D6DDSS
-```
-
----
-
-## Final .env Setup (example)
-
-From your contract directory (e.g., `zk_proof_mul_and_sum/contract`):
-
-```bash
-cat > .env <<'EOF'
-RPC="https://base-sepolia.g.alchemy.com/v2/97KJ9-rReOpP76CDrTbpC"
-PK="0xYOUR_PRIVATE_KEY"
-ETHERSCAN_API_KEY="your_basescan_api_key"
-EOF
-
-source .env
-```
-
-**Do not commit `.env` to version control.**
-
----
-
-## Test the Connection
 
 Run:
 
 ```bash
-curl -X POST $RPC \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}'
+forge script script/Deploy.s.sol \
+  --rpc-url $RPC \
+  --private-key $PK \
+  --broadcast \
+  --verify \
+  --etherscan-api-key $ETHERSCAN_API_KEY
 ```
 
-Expected output (example):
+Broadcasts and receipts are saved under `broadcast/`.
 
-```json
-{"jsonrpc":"2.0","id":1,"result":"0x12a34b"}
+---
+
+## 14 — Generate Noir Proofs & Prepare On-Chain Payloads
+
+From your Noir circuit directory:
+
+1. Generate proof:
+
+```bash
+bb prove   # or the Noir CLI command you use
 ```
 
-If you receive a block number result, the connection to Base Sepolia via your RPC provider is successful.
+2. Typical outputs: `target/proof` (binary), `target/public-inputs` (file)
+
+3. Convert binary proof to hex:
+
+```bash
+xxd -p target/proof > proof.hex
+echo -n "0x$(tr -d '\n' < proof.hex | tr -d ' ')" > proof_formatted.hex
+```
+
+4. Ensure public inputs are 32-byte hex values (bytes32). If `public-inputs` is JSON/array, map each to 32-byte hex strings.
+
+Examples:
+
+- Proof: `0x...` (single continuous string in `proof_formatted.hex`)
+- Public inputs: `[0x0000...000d, 0x0000...00aa]`
 
 ---
 
-## Deploying (next steps)
+## 15 — Verify / Call Verifier (Explorer or CLI)
 
-With Foundry installed and `.env` configured, you can compile and deploy your verifier contract using `forge` commands or a scripted `script/Deploy.s.sol` (see the project README or deploy scripts).
+Explorer (Read Contract):
+- Paste `proof` (bytes) — use `proof_formatted.hex`
+- Paste `publicInputs` as `bytes32[]` (array of 32-byte hex strings)
+- Query — successful verification returns `true`
+
+CLI (`cast`):
+
+```bash
+PROOF=$(cat proof_formatted.hex)
+cast call <VERIFIER_ADDRESS> \
+  "verify(bytes,bytes32[])(bool)" \
+  "$PROOF" \
+  '[0x000000000000000000000000000000000000000000000000000000000000000d]' \
+  --rpc-url $RPC
+```
+
+Expected output:
+
+```
+bool true
+```
+
+If `false`, re-check proof generation and public input encoding.
 
 ---
 
-## Security and Best Practices
+## 16 — Common Troubleshooting
 
-- Never commit private keys or `.env` files to a public repository.
-- Use a hardware wallet for production operations.
-- Limit test funds on public testnets.
-- Use `revoke.cash` to manage approvals and minimize token exposure.
+- Faucet rejects request:
+  - Confirm you're requesting Base Sepolia ETH (not Ethereum Sepolia).
+  - Some faucets check Base Mainnet balance — bridge a small amount if required.
+  - Ensure MetaMask is connected to the correct network and that your RPC is correct.
+
+- Verification failures:
+  - Wrong `ETHERSCAN_API_KEY` or using an API key from another explorer.
+  - Source mismatch: ensure you are compiling with the same Solidity version and compiler settings (optimizer, runs).
+  - Flattening issues: Foundry's auto-verify usually handles this; use `--verify` with correct args.
+
+- RPC errors / wrong chain:
+  - Using an Ethereum Sepolia RPC or wrong base RPC yields incorrect chain IDs. Re-check `RPC` value.
+  - Public RPC rate-limited: switch to Alchemy/QuickNode.
+
+- Proof issues:
+  - Not hex-encoded or missing `0x` prefix.
+  - Public inputs not 32-byte padded.
+  - Explorer UI may truncate very large blobs — prefer CLI.
 
 ---
+
+## 17 — Security & Best Practices
+
+- Never commit `.env`, private keys, or secrets into source control.
+- Use hardware wallets for production deployments.
+- Limit test funds and revoke approvals with https://revoke.cash when done.
+- Prefer provider RPC (Alchemy) for CI and repeated interactions.
+- Rotate API keys and use least-privilege tokens where possible.
+
+---
+
+## 18 — Next Steps & Automation Ideas
+
+- Add a `script/VerifyProof.s.sol` to submit proofs programmatically.
+- CI: add a GitHub Actions job to run tests and optional dry-run deployments (use encrypted secrets).
+- dApp integration: create a frontend button to submit proofs via the deployed verifier.
+- Add events to the verifier contract to signal proof verification for easier UX:
+
+```solidity
+event ProofVerified(address indexed sender);
+```
+
+- Improve UX by building helper scripts to convert Noir outputs to the exact on-chain encoding.
+
+---
+
+## Resources
+
+- Base Build Portal: https://base.org/build
+- Foundry Docs: https://book.getfoundry.sh/
+- Noir Language: https://noir-lang.org
+- Base public RPCs:
+  - Sepolia: https://sepolia.base.org
+  - Mainnet: https://mainnet.base.org
+- Alchemy: https://alchemy.com
+- BaseScan: https://basescan.org & https://sepolia.basescan.org
+- Faucet examples: Alchemy Faucet, PK910 Faucet, QuickNode Faucet
+
+---
+
+## Summary
+
+This README provides a single, consolidated lesson for onboarding to Base Sepolia and building a complete pipeline from Noir circuits to on-chain verification using Foundry. Follow the sections in order: wallet/network setup → RPC configuration → Foundry & deployment → proof generation → verification. Keep your secrets local, test connections early, and prefer scripted deployments for repeatability.
+
+Happy building — from Noir circuit to verified on-chain proof!
