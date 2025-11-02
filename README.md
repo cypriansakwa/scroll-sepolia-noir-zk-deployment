@@ -151,7 +151,7 @@ optimizer_runs = 200
 ```
 **Foundry Configuration (`foundry.toml`)**
 ```toml
-  [profile.default]
+[profile.default]
 src = "."
 out = "out"
 libs = ["lib"]
