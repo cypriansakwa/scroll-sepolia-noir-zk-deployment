@@ -113,7 +113,7 @@ ETHERSCAN_API_KEY=YOUR_KEY
 Your `.env` file should contain:
 
 ```ini
- PRIVATE_KEY=0x10a5cdc835304675db...
+PRIVATE_KEY=0x10a5cdc835304675db...
 SCROLL_SEPOLIA_RPC_URL=https://scroll-sepolia.g.alchemy.com/v2/XXXXX
 CHAIN_ID=534351
 ETHERSCAN_API_KEY=XXXXX
