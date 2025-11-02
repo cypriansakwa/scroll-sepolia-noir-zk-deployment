@@ -3,7 +3,7 @@ Deploying and Interacting with Zero-Knowledge Verifier Contracts on Scroll Sepol
 
 ## Lesson Overview
 
-### Objective
+**Objective**
 By the end of this lesson, learners will be able to:
 
 - Explain what Scroll is and how it relates to Ethereum.
