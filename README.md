@@ -14,8 +14,6 @@ By the end of this lesson, learners will be able to:
 - Understand the difference between read-only verification and on-chain verification.
 
 ## What is Scroll?
-
-### Scroll in Plain Terms
 Scroll is an Ethereum Layer 2 designed to make transactions faster and cheaper.
 
 It uses zero-knowledge proofs to validate batches of transactions on Ethereum.
@@ -24,8 +22,7 @@ It is a zkEVM, meaning it fully supports Ethereum smart contracts.
 
 Any Ethereum tool (Hardhat, Foundry, MetaMask) works on Scroll — you simply change the RPC URL.
 
-### Reference
-https://docs.scroll.io/en/developers/
+For more, read: https://docs.scroll.io/en/developers/
 
 ## Adding Scroll Sepolia to MetaMask
 
