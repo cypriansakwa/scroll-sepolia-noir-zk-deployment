@@ -1,9 +1,7 @@
 # SCROLL + Noir ZK Deployment Tutorial
 Deploying and Interacting with Zero-Knowledge Verifier Contracts on Scroll Sepolia
 
-## Lesson Overview
-
-**Objective**
+## Objectives
 
 By the end of this lesson, learners will be able to:
 
